@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:translator/translator.dart';
 import 'package:translator_app/constants.dart';
 
@@ -11,11 +13,57 @@ class TranslatorScreen extends StatefulWidget {
 
 class _TranslatorScreenState extends State<TranslatorScreen> {
   final translator = GoogleTranslator();
+  SpeechToText stt = SpeechToText();
+  bool _speechEnabled = false;
+  String _recognisedWords = '';
 
   String? selectedInputLang = "English (US)";
   String? selectedTransLang = "English (US)";
   TextEditingController inputTextController = TextEditingController();
   TextEditingController translatedTextController = TextEditingController();
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    initSpeech();
+  }
+
+  void initSpeech() async {
+    _speechEnabled = await stt.initialize();
+    setState(() {});
+  }
+
+  void startListen() async {
+    await stt.listen(
+      onResult: (result) {
+        setState(() {
+          _recognisedWords = result.recognizedWords;
+          inputTextController.text = _recognisedWords;
+        });
+      },
+    );
+  }
+
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      if (stt.hasRecognized) {
+        _recognisedWords = result.recognizedWords;
+      } else {
+        print("Not recognised");
+        _recognisedWords = '';
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not recognise the speech')));
+      }
+    });
+  }
+
+  void stopListen() async {
+    await stt.stop();
+    setState(() {
+      //_recognisedWords = "";
+    });
+  }
 
   void translating(String selectedInputLang, String seletedTransLang,
       String inputText) async {
@@ -25,7 +73,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
       if (inputText.isEmpty) {
         translatedTextController.text = "";
       } else {
-        var translaion = await translator
+        await translator
             .translate(inputText, from: selectedInpCode, to: selectedOutCode)
             .then((value) {
           print(value);
@@ -34,10 +82,19 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
       }
       //print('${translaion.text}');
     } catch (e) {
-      translatedTextController.text = e.toString();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
       print(e.toString());
     }
     ;
+  }
+
+  @override
+  void dispose() {
+    inputTextController.dispose();
+    translatedTextController.dispose();
+    // TODO: implement dispose
+    super.dispose();
   }
 
   @override
@@ -45,7 +102,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
     return SafeArea(
         child: Scaffold(
       appBar: AppBar(
-        title: Center(
+        title: const Center(
           child: Text(
             'Translator App',
             style: TextStyle(fontSize: 27, fontWeight: FontWeight.w700),
@@ -59,11 +116,11 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             //mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Text(
+              const Text(
                 'Enter the text needed to be translated:',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
-              SizedBox(
+              const SizedBox(
                 height: 15,
               ),
               DropdownButton(
@@ -78,8 +135,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                     child: Text(item),
                   );
                 }).toList(),
-                // After selecting the desired option,it will
-                // change button value to selected value
+
                 onChanged: (String? newValue) {
                   setState(() {
                     //print(newValue);
@@ -88,26 +144,53 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                   });
                 },
               ),
-              SizedBox(
+              const SizedBox(
                 height: 15,
               ),
-              Container(
-                height: 50,
-                width: MediaQuery.of(context).size.width / 1.2,
-                child: TextField(
-                  decoration: InputDecoration(hintText: 'Enter the text'),
-                  controller: inputTextController,
-                  maxLines: 5,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  SizedBox(
+                    height: 50,
+                    width: MediaQuery.of(context).size.width / 1.2,
+                    child: TextField(
+                      decoration:
+                          const InputDecoration(hintText: 'Enter the text'),
+                      controller: inputTextController,
+                      maxLines: 5,
+                    ),
+                  ),
+                  IconButton(
+                      onPressed: () {
+                        if (stt.isNotListening) {
+                          _recognisedWords = "";
+                          startListen();
+                          //print(_recognisedWords);
+                          setState(() {
+                            //inputTextController.text = _recognisedWords;
+                          });
+                        } else {
+                          stopListen();
+                          print(_recognisedWords);
+                          setState(() {
+                            // inputTextController.text = _recognisedWords;
+                          });
+                          //inputTextController.text = _recognisedWords;
+                          //inputTextController.clear();
+                        }
+                      },
+                      icon:
+                          Icon(stt.isNotListening ? Icons.mic_off : Icons.mic))
+                ],
               ),
-              SizedBox(
+              const SizedBox(
                 height: 25,
               ),
-              Text(
+              const Text(
                 'The translated text is:',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
               ),
-              SizedBox(
+              const SizedBox(
                 height: 15,
               ),
               DropdownButton(
@@ -130,7 +213,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                   });
                 },
               ),
-              Container(
+              SizedBox(
                 height: 50,
                 width: MediaQuery.of(context).size.width / 1.2,
                 child: TextField(
@@ -141,7 +224,7 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                   maxLines: 5,
                 ),
               ),
-              SizedBox(
+              const SizedBox(
                 height: 15,
               ),
               Row(
@@ -155,15 +238,15 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                     child: Container(
                       height: 50,
                       width: 150,
-                      child: Center(
+                      decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: const Center(
                         child: Text(
                           'Translate',
                           style: TextStyle(color: Colors.white, fontSize: 20),
                         ),
                       ),
-                      decoration: BoxDecoration(
-                          color: Colors.black45,
-                          borderRadius: BorderRadius.circular(20)),
                     ),
                   ),
                   TextButton(
@@ -174,15 +257,15 @@ class _TranslatorScreenState extends State<TranslatorScreen> {
                     child: Container(
                       height: 50,
                       width: 150,
-                      child: Center(
+                      decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: const Center(
                         child: Text(
                           'Clear',
                           style: TextStyle(color: Colors.white, fontSize: 20),
                         ),
                       ),
-                      decoration: BoxDecoration(
-                          color: Colors.redAccent,
-                          borderRadius: BorderRadius.circular(20)),
                     ),
                   ),
                 ],
